@@ -1,3 +1,5 @@
+#include <SPI.h>
+
 #define C5 523
 #define Db5 554
 #define D5 587
@@ -10,6 +12,8 @@
 #define A5 880
 #define Bb5 932
 #define H5 988
+
+#define CS 10
 
 int sensorValue;
 float voltage;
@@ -96,11 +100,27 @@ void testToneMapping(){
     } 
 }
 
+void sendByte(uint8_t byte){
+    SPI.begin();
+    digitalWrite(CS, LOW);
+    SPI.transfer(byte);
+    digitalWrite(CS, HIGH);
+    SPI.endTransaction();
+}
+
+void testSPI(){
+    // Write 2 x 8 Bit to Shift Register
+    sendByte(0b11001100);
+    delay(100);
+    sendByte(0b00110011);
+    delay(100);
+}
+
 void setup() {
-    Serial.begin(9600);
-    Serial.print("Start");
+    pinMode(CS, OUTPUT);
+    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
 }
 
 void loop() {
-    testToneMapping();
+    testSPI();
 }
