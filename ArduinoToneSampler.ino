@@ -11,6 +11,9 @@
 #define Bb5 932
 #define H5 988
 
+int sensorValue;
+float voltage;
+
 void testToneScale(){
     tone(8, C5);
     delay(250);
@@ -61,9 +64,18 @@ void testToneScale(){
     noTone(8); 
 }
 
+void testVoltageDivider(){
+    sensorValue = analogRead(A0);
+    voltage = sensorValue * (4.87 / 1023.0);
+    Serial.println(voltage);
+    delay(500);
+}
+
 void setup() {
-    testToneScale();
+    Serial.begin(9600);
+    Serial.print("Start");
 }
 
 void loop() {
+    testVoltageDivider();
 }
