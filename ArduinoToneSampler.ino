@@ -15,6 +15,12 @@
 
 #define CS 10
 
+#define LEDREG 0b00000000 
+#define LED0 0
+#define LED1 1
+#define LED2 2
+#define LED3 3
+
 int sensorValue;
 float voltage;
 
@@ -85,17 +91,22 @@ float readVoltage(){
     return sensorValue * (4.87 / 1023.0);
 }
 
-void testToneMapping(){
+void testToneLEDMapping(){
     voltage = readVoltage();
     if(voltage >= c5-c5*0.1 && voltage <= c5+c5*0.1){
         tone(8, C5);
+        sendByte(LEDREG | (1<<LED0));
     } else if(voltage >= d5-d5*0.1 && voltage <= d5+d5*0.1){
         tone(8, D5);
+        sendByte(LEDREG | (1<<LED1));
     } else if(voltage >= e5-e5*0.1 && voltage <= e5+e5*0.1){
         tone(8, E5);
+        sendByte(LEDREG | (1<<LED2));
     } else if(voltage >= f5-f5*0.1 && voltage <= f5+f5*0.1){
         tone(8, F5);
+        sendByte(LEDREG | (1<<LED3));
     } else if(voltage < 0.2){
+        sendByte(LEDREG);
         noTone(8);
     } 
 }
@@ -122,5 +133,5 @@ void setup() {
 }
 
 void loop() {
-    testSPI();
+    testToneLEDMapping();
 }
