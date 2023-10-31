@@ -4,13 +4,17 @@
 #define GATE A1
 #define AUDIOOUT 8
 
-#define CS 10
+#define CS_TONE_LIGHT 10
+#define CS_STEP_LIGHT 9
+#define CS_MODE_LIGHT 7
 
 #define LEDREG 0b00000000 
 #define LED0 0
 #define LED1 1
 #define LED2 2
-#define LED3 3
+#define LED3 34
+
+#define TOLERANCE 0.01
 
 float cvVoltages[] = {
     1.418,
@@ -96,8 +100,8 @@ class Audio {
         float _minVoltage;
         float _maxVoltage;
         void _playTone(float pitch, float gate, uint8_t i){
-            _minVoltage = _cvVoltages[i] - _cvVoltages[i] * 0.02;
-            _maxVoltage = _cvVoltages[i] + _cvVoltages[i] * 0.02;
+            _minVoltage = _cvVoltages[i] - _cvVoltages[i] * TOLERANCE;
+            _maxVoltage = _cvVoltages[i] + _cvVoltages[i] * TOLERANCE;
             if(pitch >= _minVoltage && pitch <= _maxVoltage){
                 if(gate > 3.5){
                     tone(_outputPin, _frequencies[i]);
@@ -121,36 +125,84 @@ class Audio {
         }
 };
 
-void sendByte(uint8_t byte){
-    SPI.begin();
-    digitalWrite(CS, LOW);
-    SPI.transfer(byte);
-    digitalWrite(CS, HIGH);
-    SPI.endTransaction();
-}
+class Light {
+    private:
+        float* _frequencies;
+        float* _cvVoltages;
+        uint8_t _csToneLight;
+        uint8_t _csStepLight;
+        uint8_t _csModeLight;
+        float _minVoltage;
+        float _maxVoltage;
+        uint8_t _toneByte;
+        void _sendByte(uint8_t byte, uint8_t cs){
+            SPI.begin();
+            digitalWrite(cs, LOW);
+            SPI.transfer(byte);
+            digitalWrite(cs, HIGH);
+            SPI.endTransaction();
+        }
+        void _createLedData(float pitch, float gate, uint8_t i){
+            _minVoltage = _cvVoltages[i] - _cvVoltages[i] * TOLERANCE;
+            _maxVoltage = _cvVoltages[i] + _cvVoltages[i] * TOLERANCE;
+            if(pitch >= _minVoltage && pitch <= _maxVoltage){
+                if(gate > 3.5){
+                    _toneByte = LEDREG | (1 << i);
+                    return;
+                } else {
+                    _toneByte = LEDREG;
+                    return;
+                }  
+            }
+        }
+    public:
+        Light(float frequencies[], float cvVoltages[], uint8_t csToneLight, uint8_t csStepLight, uint8_t csModeLight){
+            _frequencies = frequencies;
+            _cvVoltages = cvVoltages;
+            _csToneLight = csToneLight;
+            _csStepLight = csStepLight;
+            _csModeLight = csModeLight;
 
-void testSPI(){
-    // Write 2 x 8 Bit to Shift Reg, //ister
-    sendByte(0b11001100);
-    delay(100);
-    sendByte(0b00110011);
-    delay(100);
-}
+            _toneByte = LEDREG;
+
+            pinMode(_csToneLight, OUTPUT);
+            pinMode(_csStepLight, OUTPUT);
+            pinMode(_csModeLight, OUTPUT);
+            SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+        }
+        void determineToneLight(float pitch, float gate){
+            for(uint8_t i=0; i<32; i++){
+                _createLedData(pitch, gate, i);
+                _sendByte(_toneByte, _csToneLight);
+            }
+        }
+};
+
+
+
+// void testSPI(){
+//     // Write 2 x 8 Bit to Shift Reg, //ister
+//     sendByte(0b11001100);
+//     delay(100);
+//     sendByte(0b00110011);
+//     delay(100);
+// }
 
 float calculateVoltage(uint8_t analogInput){
     return analogRead(analogInput) * (4.87 / 1023.0);
 }
 
 Audio audio(frequencies, cvVoltages, AUDIOOUT);
+Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT);
 
 void setup() {
     Serial.begin(9600);
-    pinMode(CS, OUTPUT);
-    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+    Serial.println("Start Device");
 }
 
 void loop() {
     float pitch = calculateVoltage(PITCH);
     float gate = calculateVoltage(GATE);
     audio.determineSound(pitch, gate);
+    light.determineToneLight(pitch, gate);
 }
