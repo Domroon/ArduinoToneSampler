@@ -9,6 +9,7 @@
 #define CS_MODE_LIGHT 7
 
 #define LEDREG 0b00000000 
+#define LEDREG16 0b0000000000000000 
 #define LED0 0
 #define LED1 1
 #define LED2 2
@@ -135,6 +136,8 @@ class Light {
         float _minVoltage;
         float _maxVoltage;
         uint8_t _toneByte;
+        uint8_t _lightByte;
+        uint16_t _lightWord;
         void _sendByte(uint8_t byte, uint8_t cs){
             SPI.begin();
             digitalWrite(cs, LOW);
@@ -142,7 +145,14 @@ class Light {
             digitalWrite(cs, HIGH);
             SPI.endTransaction();
         }
-        void _createLedData(float pitch, float gate, uint8_t i){
+        void _sendWord(uint16_t word, uint8_t cs){
+            SPI.begin();
+            digitalWrite(cs, LOW);
+            SPI.transfer16(word);
+            digitalWrite(cs, HIGH);
+            SPI.endTransaction();
+        }
+        void _createToneData(float pitch, float gate, uint8_t i){
             _minVoltage = _cvVoltages[i] - _cvVoltages[i] * TOLERANCE;
             _maxVoltage = _cvVoltages[i] + _cvVoltages[i] * TOLERANCE;
             if(pitch >= _minVoltage && pitch <= _maxVoltage){
@@ -153,6 +163,13 @@ class Light {
                     _toneByte = LEDREG;
                     return;
                 }  
+            }
+        }
+        void _createStepData(){
+            for(int i=15; i>=0; i--){
+                _lightWord = LEDREG16 | (1 << i);
+                _sendWord(_lightWord, _csStepLight);
+                delay(50);
             }
         }
     public:
@@ -168,25 +185,22 @@ class Light {
             pinMode(_csToneLight, OUTPUT);
             pinMode(_csStepLight, OUTPUT);
             pinMode(_csModeLight, OUTPUT);
-            SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
         }
         void determineToneLight(float pitch, float gate){
             for(uint8_t i=0; i<32; i++){
-                _createLedData(pitch, gate, i);
+                _createToneData(pitch, gate, i);
                 _sendByte(_toneByte, _csToneLight);
             }
         }
+        void showStartup(){
+            for(int i=15; i>=0; i--){
+                _lightWord = LEDREG16 | (1 << i);
+                _sendWord(_lightWord, _csStepLight);
+                delay(50);
+            }
+            _sendWord(LEDREG16, _csStepLight);
+        }
 };
-
-
-
-// void testSPI(){
-//     // Write 2 x 8 Bit to Shift Reg, //ister
-//     sendByte(0b11001100);
-//     delay(100);
-//     sendByte(0b00110011);
-//     delay(100);
-// }
 
 float calculateVoltage(uint8_t analogInput){
     return analogRead(analogInput) * (4.87 / 1023.0);
@@ -198,6 +212,8 @@ Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT
 void setup() {
     Serial.begin(9600);
     Serial.println("Start Device");
+    SPI.beginTransaction(SPISettings(16000000, LSBFIRST, SPI_MODE0));
+    light.showStartup();
 }
 
 void loop() {

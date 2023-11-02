@@ -14,3 +14,5 @@
     https://github.com/users/Domroon/projects/11
 
     https://www.arduino.cc/reference/en/language/functions/communication/spi/
+
+    https://github.com/khoih-prog/TimerInterrupt
