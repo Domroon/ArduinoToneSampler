@@ -7,15 +7,27 @@
 #define CS_TONE_LIGHT 10
 #define CS_STEP_LIGHT 9
 #define CS_MODE_LIGHT 7
+#define CS_OCTAVE_LIGHT 6
+#define CS_MODE_LIGHT 5
+
+// CLK 13
+// MOSI 11
 
 #define LEDREG 0b00000000 
-#define LEDREG16 0b0000000000000000 
+#define LEDREG16 0b0000000000000000
+#define LEDREG8  0b00000000 
 #define LED0 0
 #define LED1 1
 #define LED2 2
 #define LED3 34
 
 #define TOLERANCE 0.01
+
+#define DIRECT_MODE 0
+#define SAMPLE_MODE 1
+#define PLAY_MODE 2
+
+uint16_t testMelody[] = {523, 659, 784};
 
 float cvVoltages[] = {
     1.418,
@@ -124,6 +136,11 @@ class Audio {
                 _playTone(pitch, gate, i);
             }
         }
+        void playToneMS(uint16_t freq, uint16_t timeInMS){             // Improve: It must be unblocked
+            tone(_outputPin, freq);
+            delay(timeInMS);
+            noTone(_outputPin);
+        }
 };
 
 class Light {
@@ -133,6 +150,7 @@ class Light {
         uint8_t _csToneLight;
         uint8_t _csStepLight;
         uint8_t _csModeLight;
+        uint8_t _csOctaveLight;
         float _minVoltage;
         float _maxVoltage;
         uint8_t _toneByte;
@@ -173,18 +191,20 @@ class Light {
             }
         }
     public:
-        Light(float frequencies[], float cvVoltages[], uint8_t csToneLight, uint8_t csStepLight, uint8_t csModeLight){
+        Light(float frequencies[], float cvVoltages[], uint8_t csToneLight, uint8_t csStepLight, uint8_t csModeLight, uint8_t csOctaveLight){
             _frequencies = frequencies;
             _cvVoltages = cvVoltages;
             _csToneLight = csToneLight;
             _csStepLight = csStepLight;
             _csModeLight = csModeLight;
+            _csOctaveLight = csOctaveLight;
 
             _toneByte = LEDREG;
 
             pinMode(_csToneLight, OUTPUT);
             pinMode(_csStepLight, OUTPUT);
             pinMode(_csModeLight, OUTPUT);
+            pinMode(_csOctaveLight, OUTPUT);
         }
         void determineToneLight(float pitch, float gate){
             for(uint8_t i=0; i<32; i++){
@@ -193,13 +213,44 @@ class Light {
             }
         }
         void showStartup(){
+            _sendWord(LEDREG16, _csStepLight);      // Turn off all Step LEDS
+            _sendWord(LEDREG16, _csToneLight);      // Turn off all Tone LEDS
+            _sendWord(LEDREG16, _csOctaveLight);    // Turn off all Octave LEDS
+            _sendWord(LEDREG16, _csModeLight);    // Turn off all Mode LEDS
             for(int i=15; i>=0; i--){
                 _lightWord = LEDREG16 | (1 << i);
                 _sendWord(_lightWord, _csStepLight);
                 delay(50);
             }
-            _sendWord(LEDREG16, _csStepLight);
+            _sendWord(LEDREG16, _csStepLight);      // Turn off all Step LEDS
+
+            for(int i=7; i>=2; i--){
+                _lightByte = LEDREG8 | (1 << i);
+                _sendByte(_lightByte, _csModeLight);
+                delay(50);
+            }
+            _sendWord(LEDREG8, _csModeLight);      // Turn off all Octave LEDS
+
+            for(int i=15; i>=4; i--){
+                _lightWord = LEDREG16 | (1 << i);
+                _sendWord(_lightWord, _csToneLight);
+                delay(50);
+            }
+            _sendWord(LEDREG16, _csToneLight);      // Turn off all Tone LEDS
+
+            for(int i=7; i>=0; i--){
+                _lightByte = LEDREG8 | (1 << i);
+                _sendByte(_lightByte, _csOctaveLight);
+                delay(50);
+            }
+            _sendWord(LEDREG8, _csOctaveLight);      // Turn off all Octave LEDS
         }
+};
+
+class Device {
+    public:
+        uint8_t mode;
+        
 };
 
 float calculateVoltage(uint8_t analogInput){
@@ -207,7 +258,22 @@ float calculateVoltage(uint8_t analogInput){
 }
 
 Audio audio(frequencies, cvVoltages, AUDIOOUT);
-Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT);
+Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT, CS_OCTAVE_LIGHT);
+
+void exe_direct_mode() {
+    float pitch = calculateVoltage(PITCH);
+    float gate = calculateVoltage(GATE);
+    audio.determineSound(pitch, gate);
+    light.determineToneLight(pitch, gate);
+}
+
+void exe_play_mode() { // parameter: uint16_t tones[]
+    for(uint16_t tone: testMelody){
+        audio.playToneMS(tone, 100);
+        delay(250);
+    }
+    
+}
 
 void setup() {
     Serial.begin(9600);
@@ -217,8 +283,6 @@ void setup() {
 }
 
 void loop() {
-    float pitch = calculateVoltage(PITCH);
-    float gate = calculateVoltage(GATE);
-    audio.determineSound(pitch, gate);
-    light.determineToneLight(pitch, gate);
+    // exe_play_mode();
+    //light.showStartup();
 }
