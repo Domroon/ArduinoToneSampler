@@ -77,7 +77,7 @@
 uint16_t testMelody[] = {C5, Csharp5, D5, Dsharp5, E5, F5, Fsharp5, G5, Gsharp5, A5, Bb5, H5};
 // uint16_t testMelody[] = {C5, E5, G5};
 
-volatile byte state = LOW;
+volatile byte state = 0;
 
 uint16_t stepNum = 0;
 
@@ -412,9 +412,7 @@ Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT
     
 // }
 
-void stop_and_start(){
-    state = !state;
-}
+
 
 void sendByte(uint8_t byte, uint8_t cs){
     SPI.begin();
@@ -488,6 +486,11 @@ class StepLight {
                 delay(delayTime);
             }
             sendWord(LEDREG16, CS_STEP_LIGHT);      // Turn off all Step LEDS  
+        }
+        void resetStep(){
+            changeStepQty(_stepQty);
+            _step = 0;
+            _stepWord |= (1 << _step);
         }
 };
 
@@ -594,6 +597,13 @@ StepLight stepLight;
 ToneLight toneLight;
 ModeLight modeLight;
 
+void stop_and_start(){
+    state = !state;
+    Serial.print("state: ");
+    Serial.println(state);
+    stepLight.resetStep();
+}
+
 void setup() {
     Serial.begin(9600);
     Serial.println("Start Device");
@@ -605,19 +615,25 @@ void setup() {
     toneLight.showStartup(25);
 
     modeLight.showStartup(25);
-    modeLight.changeMode(1);
+    modeLight.changeMode(0);
 
     stepLight.showStartup(25);
     stepLight.changeStepQty(12);
 }
 
 void loop() {
-    for(uint16_t tone: testMelody){
-        toneLight.showNote(tone);
-        stepLight.showStep();
-        stepLight.nextStep();
-        audio.playToneMS(tone, 200);
+    if(state){
+        for(uint16_t tone: testMelody){
+            toneLight.showNote(tone);
+            stepLight.showStep();
+            stepLight.nextStep();
+            audio.playToneMS(tone, 900);
+            if(!state){
+                break;
+            }
+        }
     }
+    
     // // sendWord(0b1010101010101010, CS_STEP_LIGHT);
     // sendByte(0b10101010, CS_SITE_LIGHT);
     // delay(500);
