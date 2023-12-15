@@ -78,6 +78,8 @@ uint16_t testMelody[] = {C5, E5, G5, C6, E6, G6};
 
 volatile byte state = LOW;
 
+uint16_t stepNum = 0;
+
 float cvVoltages[] = {
     1.418,
     1.501,
@@ -209,6 +211,7 @@ class Light {
         uint8_t _octave;
         uint8_t _lightByte;
         uint16_t _lightWord;
+        uint8_t _stepNum;
         void _sendByte(uint8_t byte, uint8_t cs){
             SPI.begin();
             digitalWrite(cs, LOW);
@@ -261,7 +264,10 @@ class Light {
             pinMode(_csModeLight, OUTPUT);
             pinMode(_csOctaveLight, OUTPUT);
             pinMode(_csSiteLight, OUTPUT);
+
+            changeStepQty(16);
         }
+
         void determineToneLight(float pitch, float gate){
             for(uint8_t i=0; i<32; i++){
                 _createToneData(pitch, gate, i);
@@ -337,7 +343,24 @@ class Light {
             }
             _sendWord(LEDREG16, _csStepLight);      // Turn off all Step LEDS            
         }
+
+        void changeStepQty(uint8_t stepNum){
+            _stepNum = stepNum;
+            _lightWord = LEDREG16;
+            for(int i=0; i<_stepNum; i++){
+                _lightWord |= (1 << i);
+            }
+            _sendWord(_lightWord, _csStepLight);
+        }
+
+        void showStep(uint8_t step){
+            // changeStepQty(_stepNum);
+            _lightWord ^= (1 << step);
+            _sendWord(_lightWord, _csStepLight);
+        }
 };
+
+
 
 class Device {
     public:
@@ -352,37 +375,120 @@ float calculateVoltage(uint8_t analogInput){
 Audio audio(frequencies, cvVoltages, AUDIOOUT);
 Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT, CS_OCTAVE_LIGHT, CS_SITE_LIGHT);
 
-void exe_direct_mode() {
-    float pitch = calculateVoltage(PITCH);
-    float gate = calculateVoltage(GATE);
-    audio.determineSound(pitch, gate);
-    light.determineToneLight(pitch, gate);
-}
+// void exe_direct_mode() {
+//     float pitch = calculateVoltage(PITCH);
+//     float gate = calculateVoltage(GATE);
+//     audio.determineSound(pitch, gate);
+//     light.determineToneLight(pitch, gate);
+// }
 
-void exe_play_mode() { // parameter: uint16_t tones[]
-    for(uint16_t tone: testMelody){
-        audio.playToneMS(tone, 100);
-        light.showNote(tone);
-        delay(250);
-    }
+// void exe_play_mode(uint16_t stepNum) { // parameter: uint16_t tones[]
+//     stepNum = 0;
+//     for(uint16_t tone: testMelody){
+//         audio.playToneMS(tone, 100);
+//         light.showNote(tone);
+//         stepNum += 1;
+//         delay(250);
+//     }
     
-}
+// }
 
 void stop_and_start(){
     state = !state;
 }
 
+void sendByte(uint8_t byte, uint8_t cs){
+    SPI.begin();
+    digitalWrite(cs, LOW);
+    SPI.transfer(byte);
+    digitalWrite(cs, HIGH);
+    SPI.endTransaction();
+}
+
+void sendWord(uint16_t word, uint8_t cs){
+    SPI.begin();
+    digitalWrite(cs, LOW);
+    SPI.transfer16(word);
+    digitalWrite(cs, HIGH);
+    SPI.endTransaction();
+}
+
+class StepLight {
+    private:
+        uint16_t _stepWord;
+        uint8_t _stepQty;
+        uint8_t _step;
+    public:
+        StepLight(){
+            pinMode(CS_STEP_LIGHT, OUTPUT);
+            _stepWord = LEDREG16;
+            _stepQty = 16;
+            _step = 0;
+        }
+        void changeStepQty(uint8_t stepQty){
+            _stepQty = stepQty;
+            _stepWord = LEDREG16;
+            for(int i=0; i<_stepQty; i++){
+                _stepWord |= (1 << i);
+            }
+            _stepWord &= ~(1 << _step);
+            sendWord(_stepWord, CS_STEP_LIGHT);
+        }
+        void showNextStep(){            
+            _step += 1;
+            _stepWord &= ~(1 << _step);
+            if(_step != 0){
+                _stepWord |= (1 << _step-1);
+            }
+            if(_step == _stepQty){
+                _stepWord |= (1 << _stepQty-1);
+                _stepWord &= ~(1 << 0);
+                _step = 0;
+            }
+            sendWord(_stepWord, CS_STEP_LIGHT);
+        }
+        void showStartup(uint8_t delayTime){
+            for(int i=0; i<16; i++){
+                _stepWord = LEDREG16 | (1 << i);
+                sendWord(_stepWord, CS_STEP_LIGHT);
+                delay(delayTime);
+            }
+            sendWord(LEDREG16, CS_STEP_LIGHT);      // Turn off all Step LEDS  
+        }
+};
+
+StepLight stepLight;
+
 void setup() {
     Serial.begin(9600);
     Serial.println("Start Device");
+    
     SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-    light.showStartup(50);
+    // light.showStartup(20);
+    // light.changeStepQty(6);
     attachInterrupt(digitalPinToInterrupt(2), stop_and_start, RISING) ;
+    pinMode(CS_OCTAVE_LIGHT, OUTPUT);
+    pinMode(CS_TONE_LIGHT, OUTPUT);
+    pinMode(CS_MODE_LIGHT, OUTPUT);
+    pinMode(CS_SITE_LIGHT, OUTPUT);
+    // pinMode(CS_STEP_LIGHT, OUTPUT);
+
+    stepLight.showStartup(50);
+    stepLight.changeStepQty(6);
 }
 
 void loop() {
-    // exe_play_mode();
-    // if(state){
-    //     light.showStartup();
-    // }
+    delay(500);
+    stepLight.showNextStep();
+    
+    // // sendWord(0b1010101010101010, CS_STEP_LIGHT);
+    // sendByte(0b10101010, CS_SITE_LIGHT);
+    // delay(500);
+    // //sendWord(0b0101010101010101, CS_STEP_LIGHT);
+    // sendByte(0b01010101, CS_SITE_LIGHT);
+    // delay(500);
+    // // exe_play_mode(stepNum);
+    // // if(state){
+    // //     light.showStartup();
+    // // }
 }
