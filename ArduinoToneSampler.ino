@@ -437,6 +437,8 @@ class StepLight {
         uint16_t _stepWord;
         uint8_t _stepQty;
         uint8_t _step;
+        uint8_t _siteByte;
+        uint8_t _site;
     public:
         StepLight(){
             pinMode(CS_STEP_LIGHT, OUTPUT);
@@ -444,6 +446,9 @@ class StepLight {
             _stepWord = LEDREG16;
             _stepQty = 16;
             _step = 0;
+            _siteByte = LEDREG8;
+            uint8_t _site = 0;
+            sendWord(LEDREG8, CS_SITE_LIGHT);      // Turn off all Site LEDS 
         }
         void changeStepQty(uint8_t stepQty){
             _stepQty = stepQty;
@@ -470,6 +475,13 @@ class StepLight {
             sendWord(_stepWord, CS_STEP_LIGHT);
         }
         void showStartup(uint8_t delayTime){
+            for(int i=0; i<4; i++){
+                _siteByte = LEDREG8 | (1 << i);
+                sendWord(_siteByte, CS_SITE_LIGHT);
+                delay(delayTime);
+            }
+            sendWord(LEDREG8, CS_SITE_LIGHT);      // Turn off all Step LEDS  
+
             for(int i=0; i<16; i++){
                 _stepWord = LEDREG16 | (1 << i);
                 sendWord(_stepWord, CS_STEP_LIGHT);
@@ -500,14 +512,6 @@ class ToneLight {
             if(tone == C5 || tone == C6){
                 _toneNum = 0;
             }
-
-            // if(tone == C5 || tone == C6){
-            //     _toneNum = C;
-            // } else if(tone == E5 || tone == E6){
-            //     _toneNum = E;
-            // } else if(tone == G5 || tone == G6){
-            //     _toneNum = G;
-            // }
 
             if(tone == C5 || tone == C6){
                 _toneNum = C;
@@ -541,6 +545,21 @@ class ToneLight {
             _octaveByte = LEDREG8 | (1 << _octave);
             sendByte(_octaveByte, CS_OCTAVE_LIGHT);
         }
+        void showStartup(uint8_t delayTime) {
+            for(int i=0; i<16; i++){
+                _toneWord = LEDREG16 | (1 << i);
+                sendWord(_toneWord, CS_TONE_LIGHT);
+                delay(delayTime);
+            }
+            sendWord(LEDREG16, CS_TONE_LIGHT);      // Turn off all Tone LEDS
+
+            for(int i=0; i<8; i++){
+                _octaveByte = LEDREG8 | (1 << i);
+                sendByte(_octaveByte, CS_OCTAVE_LIGHT);
+                delay(delayTime);
+            }
+            sendByte(LEDREG8, CS_OCTAVE_LIGHT);      // Turn off all Octave LEDS
+        }
 };
 
 class ModeLight {
@@ -556,7 +575,7 @@ class ModeLight {
             sendByte(_modeByte, CS_MODE_LIGHT);
         }
         void showStartup(uint8_t delayTime){
-            for(int i=0; i<16; i++){
+            for(int i=0; i<8; i++){
                 _modeByte = LEDREG8 | (1 << i);
                 sendWord(_modeByte, CS_MODE_LIGHT);
                 delay(delayTime);
@@ -580,14 +599,10 @@ void setup() {
     Serial.println("Start Device");
     
     SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-    // light.showStartup(20);
-    // light.changeStepQty(6);
+
     attachInterrupt(digitalPinToInterrupt(2), stop_and_start, RISING) ;
-    // pinMode(CS_OCTAVE_LIGHT, OUTPUT);
-    // pinMode(CS_TONE_LIGHT, OUTPUT);
-    // pinMode(CS_MODE_LIGHT, OUTPUT);
-    // pinMode(CS_SITE_LIGHT, OUTPUT);
-    // pinMode(CS_STEP_LIGHT, OUTPUT);
+
+    toneLight.showStartup(25);
 
     modeLight.showStartup(25);
     modeLight.changeMode(1);
