@@ -440,6 +440,7 @@ class StepLight {
     public:
         StepLight(){
             pinMode(CS_STEP_LIGHT, OUTPUT);
+            pinMode(CS_SITE_LIGHT, OUTPUT);
             _stepWord = LEDREG16;
             _stepQty = 16;
             _step = 0;
@@ -542,8 +543,37 @@ class ToneLight {
         }
 };
 
+class ModeLight {
+    private:
+        uint8_t _modeNum;
+        uint8_t _modeByte;
+    public:
+        ModeLight() {
+            pinMode(CS_MODE_LIGHT, OUTPUT);
+            _modeNum = 0;
+            _modeByte = LEDREG8;
+            _modeByte |= (1 << _modeNum);
+            sendByte(_modeByte, CS_MODE_LIGHT);
+        }
+        void showStartup(uint8_t delayTime){
+            for(int i=0; i<16; i++){
+                _modeByte = LEDREG8 | (1 << i);
+                sendWord(_modeByte, CS_MODE_LIGHT);
+                delay(delayTime);
+            }
+            sendWord(LEDREG8, CS_MODE_LIGHT);      // Turn off all Mode LEDS  
+        }
+        void changeMode(uint8_t modeNum){
+            _modeNum = modeNum;
+            _modeByte = LEDREG8;
+            _modeByte = LEDREG8 | (1 << modeNum);
+            sendWord(_modeByte, CS_MODE_LIGHT);
+        }
+};
+
 StepLight stepLight;
 ToneLight toneLight;
+ModeLight modeLight;
 
 void setup() {
     Serial.begin(9600);
@@ -555,11 +585,14 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(2), stop_and_start, RISING) ;
     // pinMode(CS_OCTAVE_LIGHT, OUTPUT);
     // pinMode(CS_TONE_LIGHT, OUTPUT);
-    pinMode(CS_MODE_LIGHT, OUTPUT);
-    pinMode(CS_SITE_LIGHT, OUTPUT);
+    // pinMode(CS_MODE_LIGHT, OUTPUT);
+    // pinMode(CS_SITE_LIGHT, OUTPUT);
     // pinMode(CS_STEP_LIGHT, OUTPUT);
 
-    stepLight.showStartup(50);
+    modeLight.showStartup(25);
+    modeLight.changeMode(1);
+
+    stepLight.showStartup(25);
     stepLight.changeStepQty(12);
 }
 
