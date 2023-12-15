@@ -69,12 +69,13 @@
 #define Fsharp6 1480
 #define G6 1568
 #define Gsharp6 1661
-#define A 1760
+#define A6 1760
 #define Bb6 1865
 #define H6 1976
 #define C7 2093
 
-uint16_t testMelody[] = {C5, E5, G5, C6, E6, G6};
+uint16_t testMelody[] = {C5, Csharp5, D5, Dsharp5, E5, F5, Fsharp5, G5, Gsharp5, A5, Bb5, H5};
+// uint16_t testMelody[] = {C5, E5, G5};
 
 volatile byte state = LOW;
 
@@ -288,12 +289,30 @@ class Light {
 
             if(tone == C5 || tone == C6){
                 _toneNum = C;
+            } else if(tone == Csharp5 || tone == Csharp6){
+                _toneNum = Csharp;
+            } else if(tone == D5 || tone == D6){
+                _toneNum = D;
+            } else if(tone == Dsharp5 || tone == Dsharp6){
+                _toneNum = Dsharp;
             } else if(tone == E5 || tone == E6){
                 _toneNum = E;
+            } else if(tone == F5 || tone == F6){
+                _toneNum = F;
+            } else if(tone == Fsharp5 || tone == Fsharp6){
+                _toneNum = Fsharp;
             } else if(tone == G5 || tone == G6){
                 _toneNum = G;
+            } else if(tone == Gsharp5 || tone == Gsharp6){
+                _toneNum = Gsharp;
+            } else if(tone == A5 || tone == A6){
+                _toneNum = A;
+            } else if(tone == Bb5|| tone == Bb6){
+                _toneNum = Bb;
+            } else if(tone == H5|| tone == H6){
+                _toneNum = H;
             }
-
+            
             _toneByte = LEDREG16 |  (1 << _toneNum);
             _sendByte(_toneByte, _csToneLight);
 
@@ -434,7 +453,7 @@ class StepLight {
             _stepWord &= ~(1 << _step);
             sendWord(_stepWord, CS_STEP_LIGHT);
         }
-        void showNextStep(){            
+        void nextStep(){            
             _step += 1;
             _stepWord &= ~(1 << _step);
             if(_step != 0){
@@ -445,6 +464,8 @@ class StepLight {
                 _stepWord &= ~(1 << 0);
                 _step = 0;
             }
+        }
+        void showStep(){
             sendWord(_stepWord, CS_STEP_LIGHT);
         }
         void showStartup(uint8_t delayTime){
@@ -457,7 +478,72 @@ class StepLight {
         }
 };
 
+class ToneLight {
+    private:
+        uint8_t _octave;
+        uint8_t _toneNum;
+        uint16_t _toneWord;
+        uint8_t _octaveByte;
+    public:
+        ToneLight() {
+            pinMode(CS_TONE_LIGHT, OUTPUT);
+            pinMode(CS_OCTAVE_LIGHT, OUTPUT);
+        }
+        void showNote(uint16_t tone){
+            if(tone >= C5 && tone < C6){
+                _octave = 5;
+            } else if(tone >= C6 && tone < C7){
+                _octave = 6;
+            }
+
+            if(tone == C5 || tone == C6){
+                _toneNum = 0;
+            }
+
+            // if(tone == C5 || tone == C6){
+            //     _toneNum = C;
+            // } else if(tone == E5 || tone == E6){
+            //     _toneNum = E;
+            // } else if(tone == G5 || tone == G6){
+            //     _toneNum = G;
+            // }
+
+            if(tone == C5 || tone == C6){
+                _toneNum = C;
+            } else if(tone == Csharp5 || tone == Csharp6){
+                _toneNum = Csharp;
+            } else if(tone == D5 || tone == D6){
+                _toneNum = D;
+            } else if(tone == Dsharp5 || tone == Dsharp6){
+                _toneNum = Dsharp;
+            } else if(tone == E5 || tone == E6){
+                _toneNum = E;
+            } else if(tone == F5 || tone == F6){
+                _toneNum = F;
+            } else if(tone == Fsharp5 || tone == Fsharp6){
+                _toneNum = Fsharp;
+            } else if(tone == G5 || tone == G6){
+                _toneNum = G;
+            } else if(tone == Gsharp5 || tone == Gsharp6){
+                _toneNum = Gsharp;
+            } else if(tone == A5 || tone == A6){
+                _toneNum = A;
+            } else if(tone == Bb5|| tone == Bb6){
+                _toneNum = Bb;
+            } else if(tone == H5|| tone == H6){
+                _toneNum = H;
+            }
+
+            _toneWord = LEDREG16 |  (1 << _toneNum);
+            sendWord(_toneWord, CS_TONE_LIGHT);
+
+            _octaveByte = LEDREG8 | (1 << _octave);
+            sendByte(_octaveByte, CS_OCTAVE_LIGHT);
+        }
+};
+
 StepLight stepLight;
+ToneLight toneLight;
 
 void setup() {
     Serial.begin(9600);
@@ -467,20 +553,23 @@ void setup() {
     // light.showStartup(20);
     // light.changeStepQty(6);
     attachInterrupt(digitalPinToInterrupt(2), stop_and_start, RISING) ;
-    pinMode(CS_OCTAVE_LIGHT, OUTPUT);
-    pinMode(CS_TONE_LIGHT, OUTPUT);
+    // pinMode(CS_OCTAVE_LIGHT, OUTPUT);
+    // pinMode(CS_TONE_LIGHT, OUTPUT);
     pinMode(CS_MODE_LIGHT, OUTPUT);
     pinMode(CS_SITE_LIGHT, OUTPUT);
     // pinMode(CS_STEP_LIGHT, OUTPUT);
 
     stepLight.showStartup(50);
-    stepLight.changeStepQty(6);
+    stepLight.changeStepQty(12);
 }
 
 void loop() {
-    delay(500);
-    stepLight.showNextStep();
-    
+    for(uint16_t tone: testMelody){
+        toneLight.showNote(tone);
+        stepLight.showStep();
+        stepLight.nextStep();
+        audio.playToneMS(tone, 200);
+    }
     // // sendWord(0b1010101010101010, CS_STEP_LIGHT);
     // sendByte(0b10101010, CS_SITE_LIGHT);
     // delay(500);
