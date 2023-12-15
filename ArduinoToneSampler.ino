@@ -6,9 +6,9 @@
 
 #define CS_TONE_LIGHT 10
 #define CS_STEP_LIGHT 9
-#define CS_MODE_LIGHT 7
 #define CS_OCTAVE_LIGHT 6
 #define CS_MODE_LIGHT 5
+#define CS_SITE_LIGHT 7
 
 // CLK 13
 // MOSI 11
@@ -27,7 +27,56 @@
 #define SAMPLE_MODE 1
 #define PLAY_MODE 2
 
-uint16_t testMelody[] = {523, 659, 784};
+// Tones
+#define C       0
+#define Csharp  1
+#define D       2
+#define Dsharp  3
+#define E       4
+#define F       5
+#define Fsharp  6
+#define G       7
+#define Gsharp  8
+#define A       9
+#define Bb      10
+#define H       11
+
+#define F4 349
+#define Fsharp4 370
+#define G4 392
+#define Gsharp4 415
+#define A4 440
+#define Bb4 466
+#define H4 493
+#define C5 523
+#define Csharp5 554
+#define D5 587
+#define Dsharp5 622
+#define E5 659
+#define F5 699
+#define Fsharp5 740
+#define G5 784
+#define Gsharp5 831
+#define A5 880
+#define Bb5 932
+#define H5 988
+#define C6 1047
+#define Csharp6 1109
+#define D6 1175
+#define Dsharp6 1245
+#define E6 1319
+#define F6 1397
+#define Fsharp6 1480
+#define G6 1568
+#define Gsharp6 1661
+#define A 1760
+#define Bb6 1865
+#define H6 1976
+#define C7 2093
+
+uint16_t testMelody[] = {C5, E5, G5, C6, E6, G6};
+
+volatile byte state = LOW;
 
 float cvVoltages[] = {
     1.418,
@@ -151,9 +200,13 @@ class Light {
         uint8_t _csStepLight;
         uint8_t _csModeLight;
         uint8_t _csOctaveLight;
+        uint8_t _csSiteLight;
         float _minVoltage;
         float _maxVoltage;
         uint8_t _toneByte;
+        uint8_t _toneNum;
+        uint8_t _octaveByte;
+        uint8_t _octave;
         uint8_t _lightByte;
         uint16_t _lightWord;
         void _sendByte(uint8_t byte, uint8_t cs){
@@ -191,20 +244,23 @@ class Light {
             }
         }
     public:
-        Light(float frequencies[], float cvVoltages[], uint8_t csToneLight, uint8_t csStepLight, uint8_t csModeLight, uint8_t csOctaveLight){
+        Light(float frequencies[], float cvVoltages[], uint8_t csToneLight, uint8_t csStepLight, uint8_t csModeLight, uint8_t csOctaveLight, uint8_t csSiteLight){
             _frequencies = frequencies;
             _cvVoltages = cvVoltages;
             _csToneLight = csToneLight;
             _csStepLight = csStepLight;
             _csModeLight = csModeLight;
             _csOctaveLight = csOctaveLight;
+            _csSiteLight = csSiteLight;
 
             _toneByte = LEDREG;
+            _octaveByte = LEDREG16;
 
             pinMode(_csToneLight, OUTPUT);
             pinMode(_csStepLight, OUTPUT);
             pinMode(_csModeLight, OUTPUT);
             pinMode(_csOctaveLight, OUTPUT);
+            pinMode(_csSiteLight, OUTPUT);
         }
         void determineToneLight(float pitch, float gate){
             for(uint8_t i=0; i<32; i++){
@@ -212,38 +268,74 @@ class Light {
                 _sendByte(_toneByte, _csToneLight);
             }
         }
-        void showStartup(){
+        
+        void showNote(uint16_t tone){
+            if(tone >= C5 && tone < C6){
+                _octave = 5;
+            } else if(tone >= C6 && tone < C7){
+                _octave = 6;
+            }
+
+            if(tone == C5 || tone == C6){
+                _toneNum = 0;
+            }
+
+            if(tone == C5 || tone == C6){
+                _toneNum = C;
+            } else if(tone == E5 || tone == E6){
+                _toneNum = E;
+            } else if(tone == G5 || tone == G6){
+                _toneNum = G;
+            }
+
+            _toneByte = LEDREG16 |  (1 << _toneNum);
+            _sendByte(_toneByte, _csToneLight);
+
+            _octaveByte = LEDREG16 | (1 << _octave);
+            _sendByte(_octaveByte, _csOctaveLight);
+        }
+
+        void showStartup(uint8_t delay_time){
             _sendWord(LEDREG16, _csStepLight);      // Turn off all Step LEDS
             _sendWord(LEDREG16, _csToneLight);      // Turn off all Tone LEDS
             _sendWord(LEDREG16, _csOctaveLight);    // Turn off all Octave LEDS
-            _sendWord(LEDREG16, _csModeLight);    // Turn off all Mode LEDS
-            for(int i=15; i>=0; i--){
-                _lightWord = LEDREG16 | (1 << i);
-                _sendWord(_lightWord, _csStepLight);
-                delay(50);
-            }
-            _sendWord(LEDREG16, _csStepLight);      // Turn off all Step LEDS
+            _sendWord(LEDREG16, _csModeLight);      // Turn off all Mode LEDS
+            _sendWord(LEDREG16, _csSiteLight);      // Turn off all Site LEDs
 
-            for(int i=7; i>=2; i--){
-                _lightByte = LEDREG8 | (1 << i);
-                _sendByte(_lightByte, _csModeLight);
-                delay(50);
-            }
-            _sendWord(LEDREG8, _csModeLight);      // Turn off all Octave LEDS
-
-            for(int i=15; i>=4; i--){
+            for(int i=0; i<12; i++){
                 _lightWord = LEDREG16 | (1 << i);
                 _sendWord(_lightWord, _csToneLight);
-                delay(50);
+                delay(delay_time);
             }
             _sendWord(LEDREG16, _csToneLight);      // Turn off all Tone LEDS
 
-            for(int i=7; i>=0; i--){
+            for(int i=0; i<8; i++){
                 _lightByte = LEDREG8 | (1 << i);
                 _sendByte(_lightByte, _csOctaveLight);
-                delay(50);
+                delay(delay_time);
             }
             _sendWord(LEDREG8, _csOctaveLight);      // Turn off all Octave LEDS
+
+            for(int i=0; i<6; i++){
+                _lightByte = LEDREG8 | (1 << i);
+                _sendByte(_lightByte, _csModeLight);
+                delay(delay_time);
+            }
+            _sendWord(LEDREG8, _csModeLight);      // Turn off all Mode LEDS
+
+            for(int i=0; i<4; i++){
+                _lightByte = LEDREG8 | (1 << i);
+                _sendByte(_lightByte, _csSiteLight);
+                delay(delay_time);
+            }
+            _sendWord(LEDREG8, _csSiteLight);      // Turn off all Site LEDS
+
+            for(int i=0; i<16; i++){
+                _lightWord = LEDREG16 | (1 << i);
+                _sendWord(_lightWord, _csStepLight);
+                delay(delay_time);
+            }
+            _sendWord(LEDREG16, _csStepLight);      // Turn off all Step LEDS            
         }
 };
 
@@ -258,7 +350,7 @@ float calculateVoltage(uint8_t analogInput){
 }
 
 Audio audio(frequencies, cvVoltages, AUDIOOUT);
-Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT, CS_OCTAVE_LIGHT);
+Light light(frequencies, cvVoltages, CS_TONE_LIGHT, CS_STEP_LIGHT, CS_MODE_LIGHT, CS_OCTAVE_LIGHT, CS_SITE_LIGHT);
 
 void exe_direct_mode() {
     float pitch = calculateVoltage(PITCH);
@@ -270,19 +362,27 @@ void exe_direct_mode() {
 void exe_play_mode() { // parameter: uint16_t tones[]
     for(uint16_t tone: testMelody){
         audio.playToneMS(tone, 100);
+        light.showNote(tone);
         delay(250);
     }
     
 }
 
+void stop_and_start(){
+    state = !state;
+}
+
 void setup() {
     Serial.begin(9600);
     Serial.println("Start Device");
-    SPI.beginTransaction(SPISettings(16000000, LSBFIRST, SPI_MODE0));
-    light.showStartup();
+    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+    light.showStartup(50);
+    attachInterrupt(digitalPinToInterrupt(2), stop_and_start, RISING) ;
 }
 
 void loop() {
     // exe_play_mode();
-    //light.showStartup();
+    // if(state){
+    //     light.showStartup();
+    // }
 }
